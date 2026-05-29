@@ -1,0 +1,3 @@
+Alur kerja Continuous Integration (CI) telah berhasil dikonfigurasi menggunakan GitHub Actions.
+Berkas workflow dapat dilihat pada direktori: .github/workflows/ci.yml
+Status: Mengotomatisasi pengecekan sintaks skrip Python (Linting) menggunakan flake8 setiap ada aktivitas push pada branch main.
