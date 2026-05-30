@@ -33,5 +33,8 @@ jobs:
 
     - name: Run Automation Pipeline
       run: |
-        cd preprocessing
+        # Mencari lokasi folder preprocessing dimanapun ia berada
+        find . -type d -name "preprocessing"
+        # Masuk ke folder tersebut dan jalankan script
+        cd "$(find . -type d -name "preprocessing" | head -n 1)"
         python automate_Rheby_Ersa_Monica.py
