@@ -1,65 +1,50 @@
-import time
-import random
-import pandas as pd
 from flask import Flask, request, jsonify
-from prometheus_client import start_http_server, Counter, Histogram
+import time
+import psutil
+from prometheus_client import start_http_server, Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
-# 1. Inisialisasi Flask App
 app = Flask(__name__)
 
-# 2. Definisikan Metrik Prometheus sesuai Kriteria Monitoring
-PREDICTION_COUNTER = Counter(
-    'model_predictions_total', 
-    'Total jumlah prediksi yang dilakukan oleh model',
-    ['status']
-)
-PREDICTION_LATENCY = Histogram(
-    'model_prediction_latency_seconds', 
-    'Waktu yang dibutuhkan untuk melakukan inferensi model'
-)
+# --- 10 METRIK  ---
+REQUEST_COUNT = Counter('api_requests_total', 'Total HTTP requests')
+LATENCY = Histogram('model_inference_seconds', 'Waktu inferensi model')
+PRED_RESULTS = Counter('model_predictions_total', 'Hasil prediksi', ['label'])
+ERRORS = Counter('api_errors_total', 'Total HTTP errors', ['code'])
+NULL_INPUTS = Counter('model_input_null_count', 'Jumlah input kosong')
+SYS_MEM = Gauge('system_memory_usage', 'RAM usage')
+SYS_CPU = Gauge('system_cpu_usage', 'CPU usage')
+MODEL_STATUS = Gauge('model_loaded', 'Status model')
+DATA_VOL = Counter('data_volume_processed', 'Jumlah data diproses')
+HTTP_DUR = Histogram('http_duration', 'Durasi HTTP')
+
+MODEL_STATUS.set(1)
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    start_time = time.time()
+    start = time.time()
+    data = request.get_json()
     
-    try:
-        # Mengambil data input JSON dari request
-        data = request.get_json()
-        
-        # --- Simulasi Jalannya Inferensi Model ---
-        # Catatan: Di dunia nyata, kita memuat model pickle/joblib di sini.
-        # Untuk keperluan monitoring metric, kita simulasikan proses pembacaannya.
-        time.sleep(random.uniform(0.05, 0.2))  # Simulasi latensi model
-        
-        # Anggap prediksi sukses dan menghasilkan keputusan loan (1 = disetujui, 0 = ditolak)
-        prediction_result = random.choice([0, 1])
-        
-        # Catat metrik sukses ke Prometheus
-        PREDICTION_COUNTER.labels(status='success').inc()
-        
-        # Hitung durasi latensi
-        latency = time.time() - start_time
-        PREDICTION_LATENCY.observe(latency)
-        
-        return jsonify({
-            'status': 'success',
-            'prediction': prediction_result,
-            'latency_seconds': latency
-        }), 200
+    if not data:
+        NULL_INPUTS.inc()
+        return jsonify({'error': 'No data'}), 400
+    
+    # Simulasi prediksi (Ganti dengan model.predict Anda)
+    pred = 1 
+    
+    # Update Metrik
+    REQUEST_COUNT.inc()
+    LATENCY.observe(time.time() - start)
+    PRED_RESULTS.labels(label=str(pred)).inc()
+    DATA_VOL.inc()
+    
+    return jsonify({'prediction': pred})
 
-    except Exception as e:
-        # Catat metrik error ke Prometheus jika input bermasalah
-        PREDICTION_COUNTER.labels(status='error').inc()
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 400
+@app.route('/metrics')
+def metrics():
+    SYS_MEM.set(psutil.virtual_memory().used)
+    SYS_CPU.set(psutil.cpu_percent())
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 if __name__ == '__main__':
-    # Menjalankan server metrik Prometheus pada port 8000
-    print("Mulai Prometheus Exporter di http://localhost:8000/metrics")
-    start_http_server(8000)
-    
-    # Menjalankan server aplikasi web inferensi (Flask) pada port 5000
-    print("Mulai Model Serving API di http://localhost:5000")
-    app.run(host='0.0.0.0', port=5000)
+    start_http_server(8000) # Port untuk Prometheus
+    app.run(port=5000)      # Port untuk API
